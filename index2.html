@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+    <title>Athena pubnub demo</title>
+    <meta name="description" content="Athena chat">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href='https://fonts.googleapis.com/css?family=Gorditas:700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" href="bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <div class="modal fade" id="profile-modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title">Welcome, please let us know who you are:</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <label for="txtUsername">User Name:</label>
+                            <input type="text" id="txtUsername">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <label for="txtLocation"><p>Where are you from:</p></label>
+                            <input type="text" id="txtLocation">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" data-dismiss="modal" id="btn-update-profile">Save changes</button>
+                </div>
+            </div>
+            <!-- /.modal-content -->
+        </div>
+        <!-- /.modal-dialog -->
+    </div>
+    <!-- /.modal -->
+
+    <section id="main" role="main">
+        <div class="container">
+            <div class="row">
+                    <div class="row">
+                        <div class="col-sm-12">
+                            <button type="button" class="btn btn-default btn-sm" style="position: relative; top: -5px;left:12px; float:right" id="join-button">
+                                <span aria-hidden="true">Join</span>
+                            </button>
+                        </div>
+
+                    <div class="row">
+                        <div class="col-md-4" style="position: relative;left: -3px;display:block">
+                            <div class="row">
+                                <div id="user-count-container" class="well col-sm-12">
+                                    <p id="presence"><span class="badge">Pubnub Chat App</span></p>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="well col-sm-12" style="height:546px;padding: 18px">
+                                    <ul id="userl" class="list-group">
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-8" id="message-area">
+                            <div class="row well">
+                                <div id="chat-output" class="col-sm-12">
+                                    <ul id="chat-messages" class="list-group">
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="row well">
+                                <div id="chat-control" class="col-sm-8">
+                                    <div class="message-console-send-area" class="col-sm-10">
+                                        <label class="message-console-textarea-title" for="message-console-input"></label>
+                                        <textarea class="console-message" id="console-message-input"></textarea>
+                                    </div>
+                                    <div class="col-sm-4">
+                                        <button type="button" class="btn btn-default btn-lg" id="send-button">
+                                            <span class="glyphicon " aria-hidden="true"></span> Send
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+    </section>
+    <footer></footer>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    <script src="bootstrap/js/bootstrap.js"></script>
+    <script src="https://cdn.pubnub.com/sdk/javascript/pubnub.4.1.1.js"></script>
+    <script src="js/app.js"></script>
+    <script src="jquery-ui-1.12.1/jquery-ui.min.js"></script>
+    <script>
+    (function(){
+//sam
+ var jwt_input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJPbmxpbmUgSldUIEJ1aWxkZXIiLCJpYXQiOjE0ODQ4MTk5NTQsImV4cCI6MTUxNjM1NTk1NCwiYXVkIjoid3d3LmV4YW1wbGUuY29tIiwic3ViIjoia2ltIn0.gMYAsFOMNb3r8PASFX1XL-dZerpVCs8bEYKz5Cw2Adk";
+
+  var pubkey = "pub-c-1eca6f0a-0630-4647-9b2f-0ff9ecc717d9";
+  var subkey = "sub-c-dde0f08e-9701-11e6-b36e-0619f8945a4f";
+  pubnub = new PubNub({ publishKey : pubkey, subscribeKey : subkey,heartbeatInterval: 60,authKey: jwt_input,logVerbosity: true});
+  var myState = {
+                'username': "Unknown",
+                'location': 'INDIA'
+            };
+   if (localStorage.getItem('profileExists')) {
+        console.log('inside profileExists');
+        //initalize the userState from localstorage..
+        //you could also retrieve a user profile from your backend systems
+        myState.username = localStorage.profileUserName;
+        myState.location = localStorage.profileLocation;
+  }
+  var newUUID,groupChatId,channel,join_button = document.getElementById('join-button');
+
+  var pubnub;
+
+  var updateProfileButton = document.querySelector('#btn-update-profile');
+  updateProfileButton.onclick = sendStateUpdate;
+
+  setupChannel();
+
+  function sendStateUpdate() {
+    var txtUserName = document.querySelector('#txtUsername');
+    var txtLocation = document.querySelector('#txtLocation');
+
+    newUUID = txtUsername.value;
+    
+    myState.username = txtUsername.value;
+    myState.location = txtLocation.value;
+    console.log('username=',myState.username,' location=',myState.location);
+    localStorage.setItem('profileUserName', txtUsername.value);
+    localStorage.setItem('profileLocation', txtLocation.value);
+    localStorage.setItem('profileExists', true);
+
+    pubnub.setState(
+        {
+            channels: [channel],
+            uuid: newUUID,
+            state: myState
+        },
+        function(response) {
+            console.log("setState on sendStateUpdate: " + JSON.stringify(response));
+        }
+    );
+  }
+
+  /*if (myState.username === 'Unknown') {
+      // userhas not set his state.
+      console.log('inside show...');
+      $('#profile-modal').modal('show');
+  }
+  else {
+    console.log('inside else');
+    var txtUserName = document.querySelector('#txtUsername');
+    var txtLocation = document.querySelector('#txtLocation');
+    txtUsername.value = myState.username;
+    txtLocation.value = myState.location;
+    console.log('name=',myState.username,' location=',myState.location);
+    pubnub.setState(
+      {
+        channels: [channel],
+        uuid: txtUsername,
+        state: myState
+      },
+      function(response) {
+        console.log("setState before joinChatRoom: " + JSON.stringify(response));
+        //joinChatRoom();
+      }
+    );
+  }*/
+  function joinChatRoom() {
+    // if (chat_channel != "webinar-chat") debugger;
+    console.log("!!!! CHAT_CHANNEL: " + channel);
+    pubnub.subscribe({
+      channels: [channel],
+      withPresence: true // also subscribe to presence instances.
+    });
+
+    document.querySelector("#send-button").disabled = false;
+    document.querySelector("#console-message-input").disabled = false;
+  }
+  function setupChannel() {
+      var groupChatInput = JSON.stringify({
+            "userIds": [
+              "sam","ram","kim","bsushant"
+            ],
+            "name": "Test Group",
+            "description": "Testing"
+          });
+      console.log('createGroup onclick');    
+      $.ajax({
+       url: 'http://satdevv739.athenahealth.com:33778/groupChats',
+       type: "POST",
+       data: groupChatInput,
+       beforeSend: function(xhr){
+          xhr.setRequestHeader('Accept', 'application/json');
+          xhr.setRequestHeader('Content-Type','application/json');
+          xhr.setRequestHeader('Authorization',jwt_input);
+       },
+       success: function(data) {
+          console.log("groupchatId=",data);
+          groupChatId = data.groupChatId;
+          channel=groupChatId;
+          
+          console.log('inside show...');
+          $('#profile-modal').modal('show');
+        
+       },
+       error: function(data) {
+          alert(JSON.stringify(data));
+       }
+      });
+  }
+
+   join_button.addEventListener("click", other);
+
+    function other(){
+          var input = document.getElementById('console-message-input'),send_button = document.getElementById('send-button'),count = 1, countUsers =1, msgCount=1,userConnected;
+          //presence
+          $.ajax({
+           url: 'http://satdevv739.athenahealth.com:33778/presences?groupChatId='+channel,
+           type: "GET",
+           beforeSend: function(xhr){
+              xhr.setRequestHeader('Accept', 'application/json');
+              xhr.setRequestHeader('Content-Type','application/json');
+              xhr.setRequestHeader('Authorization',jwt_input);
+           },
+           success: function(data) {
+              console.log("groupchat data=",data);
+           },
+           error: function(data) {
+              alert(JSON.stringify(data));
+           }
+         });
+     pubnub.addListener({
+              message: function(event) {
+                  console.log('messages=',event);
+                  lastTimeToken = event.timetoken;
+                  var formattedTime = UI.formatTimeToken(lastTimeToken);
+                  var text = event.message.content.message;
+                  var fromUser = event.message.sender;
+                  UI.addChatMessage(text, formattedTime, fromUser);
+                  
+              },
+              presence: function(event){
+                  console.log('presence=',event);
+                    var action = event.action;
+                    var channel = event.channel;
+                    var uuid = event.state.username;
+                    var data = event.state;
+                    var occupancy = event.occupancy;
+
+                    console.log("");
+                    console.log("*** presence event ***");
+                    console.log("action:    " + action);
+                    console.log("channel:   " + channel);
+                    console.log("uuid:      " + uuid);
+                    console.log("occupancy: " + occupancy);
+                    console.log("data:      " + JSON.stringify(data));
+                    console.log("*** presence event ***");
+                    console.log("");
+
+                    if (action === "join") {
+                        UI.updateRoomCount(occupancy);
+                    } 
+                    else if ((action === "timeout") || (action === "leave")) {
+                        UI.handleLeaveEvent(event); 
+                    }
+                    else if (action === "state-change") {
+                        console.log("!!!@@@ state-change event @@@!!!");
+                        UI.handleStateChange(uuid, data);
+                    }
+              },
+              status: function(event) {
+                    console.log('status=' ,event);
+                    if (event.category === "PNConnectedCategory") {
+                        pubnub.hereNow(
+                            {
+                                channels: [channel],
+                                includeUUIDs: true,
+                                includeState: true
+                            }, 
+                            function (status, response) {
+                                sendStateUpdate();
+                                console.log('status2=',response);
+                                // only one channel for this app, so we don't need to iterate over channels
+                                // get the channel by name and then get the uuids and state for each occupant
+                                UI.updateRoomCount(response.channels[channel].occupancy);
+                                response.channels[channel].occupants.forEach(
+                                    function(item) {
+                                        if (item.state)
+                                            UI.handleStateChange(item.state.username, item.state);
+                                    }
+                                );
+                            }
+                        );
+                        
+                   }
+                }
+          });
+          console.log('channel used=',channel);
+
+           joinChatRoom();
+          
+
+          //state
+          
+          //history
+            pubnub.history(
+                {
+                    channel: channel,
+                    includeTimetoken: true,
+                    count: 100 // the default
+                },
+                function (status, response) {
+                    console.log('history=' ,response);
+                    response['messages'].forEach(
+                        function(msg) {
+                            UI.addChatMessage(
+                                msg.entry.content.message, 
+                                UI.formatTimeToken(msg.timetoken), 
+                                msg.entry.sender
+                            );
+                        }
+                    );
+                }
+            );
+          //message enter event
+          send_button.addEventListener('click', function(e) {
+                send_button.disabled = true;
+                var msgBody = JSON.stringify({
+                  "body": input.value
+                });
+                $.ajax({
+                 url: 'http://satdevv739.athenahealth.com:33778/groupChats/'+channel+'/messages',
+                 type: "POST",
+                 data: msgBody,
+                 beforeSend: function(xhr){
+                    xhr.setRequestHeader('Accept', 'application/json');
+                    xhr.setRequestHeader('Content-Type','application/json');
+                    xhr.setRequestHeader('Authorization',jwt_input);
+                 },
+                 success: function(data) {
+                    console.log("message 201 ack=",data);
+                    //alert('Message posted :)');
+                    input.value = "";
+                    send_button.disabled = false;
+                 },
+                 error: function(data) {
+                    alert(JSON.stringify(data));
+                    send_button.disabled = false;
+                 }
+              }); 
+          });
+
+        
+    }
+})();
+////////////////////////////////////////////////////////////////////////////////////////////
+        // (function() {
+        //     // bind the Enter key to send-button click event
+        //     $(document).keypress(function(e){
+        //         if (e.which == 13){
+        //             $("#send-button").click();
+        //         }
+        //     });
+
+        //     //Init & Subscribe
+        //     var chat_channel = "foundService";
+        //     var pubkey = "pub-c-ca083984-4609-4d68-8eaf-b9ddc464a19b";
+        //     var subkey = "sub-c-f7734334-d64f-11e6-90f4-0619f8945a4f";
+        //     var jwt_input = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJPbmxpbmUgSldUIEJ1aWxkZXIiLCJpYXQiOjE0ODQ3MTM1MjMsImV4cCI6MTUxNjI0OTUyMywiYXVkIjoid3d3LmV4YW1wbGUuY29tIiwic3ViIjoicmFvIn0.E4Z54l7e7Gj7jPUYjMoFrzjXFdfO8um-H4uvAulX9LA";
+        //     var username = "Sushant";
+        //     var city = "Bangalore";
+        //     var country = "INDIA";
+
+        //     var myUUID = localStorage.getItem("uuid");
+        //     //var myUUID = "Rao";
+        //     var lastTimeToken = localStorage.getItem(subkey);
+
+        //     console.log('local storage had: ' + myUUID + ' for uuid and ' + ' ' + lastTimeToken);
+
+        //     if (lastTimeToken === null) {
+        //         console.log('not using last token');
+        //         lastTimeToken = 0; //make it zero
+        //     }
+
+        //     if (myUUID === null) {
+        //         console.log('UUID is null');
+        //         myUUID = PubNub.generateUUID();
+        //         username = 'user_' + myUUID; 
+        //         localStorage.setItem("uuid", myUUID);
+        //     }
+
+        //     var myState = {
+        //         'username': username,
+        //         'location': 'INDIA'
+        //     };
+
+        //      if (localStorage.getItem('profileExists')) {
+        //         //initalize the userState from localstorage..
+        //         //you could also retrieve a user profile from your backend systems
+        //         myState.username = localStorage.profileUserName;
+        //         myState.location = localStorage.profileLocation;
+        //     }
+
+        //     var pubnub = new PubNub({
+        //         publishKey:        pubkey,
+        //         subscribeKey:      subkey,
+        //         logVerbosity:      false,
+        //         uuid:              myUUID,
+        //         ssl:               true,
+        //         heartbeatInterval: 60
+        //     });
+
+        //     pubnub.history(
+        //                     {
+        //                         channel: chat_channel,
+        //                         includeTimetoken: true,
+        //                         count: 100 // the default
+        //                     },
+        //                     function (status, response) {
+        //                         console.log('history' ,response);
+        //                         response['messages'].forEach(
+        //                             function(msg) {
+        //                                 UI.addChatMessage(
+        //                                     msg.entry.text, 
+        //                                     UI.formatTimeToken(msg.timetoken), 
+        //                                     msg.entry.from
+        //                                 );
+        //                             }
+        //                         );
+        //                     }
+        //                 );
+
+        //     pubnub.addListener({
+        //         message: function(event) {
+        //             lastTimeToken = event.timetoken;
+        //             var formattedTime = UI.formatTimeToken(lastTimeToken);
+        //             var text = event.message.text;
+        //             var fromUser = event.message.from;
+
+        //             UI.addChatMessage(text, formattedTime, fromUser);
+        //         },
+
+        //         presence: function(event) {
+        //             var action = event.action;
+        //             var channel = event.channel;
+        //             var uuid = event.uuid;
+        //             var data = event.state;
+        //             var occupancy = event.occupancy;
+
+        //             console.log("");
+        //             console.log("*** presence event ***");
+        //             console.log("action:    " + action);
+        //             console.log("channel:   " + channel);
+        //             console.log("uuid:      " + uuid);
+        //             console.log("occupancy: " + occupancy);
+        //             console.log("data:      " + JSON.stringify(data));
+        //             console.log("*** presence event ***");
+        //             console.log("");
+
+        //             if (action === "join") {
+        //                 UI.updateRoomCount(occupancy);
+        //             } 
+        //             else if ((action === "timeout") || (action === "leave")) {
+        //                 UI.handleLeaveEvent(event); 
+        //             }
+        //             else if (action === "state-change") {
+        //                 console.log("!!!@@@ state-change event @@@!!!");
+        //                 UI.handleStateChange(event.uuid, event.state);
+        //             } 
+
+        //         },
+
+        //         status: function(event) {
+        //             console.log('status' ,event);
+        //             if (event.category === "PNConnectedCategory") {
+        //                 pubnub.hereNow(
+        //                     {
+        //                         channels: [chat_channel],
+        //                         includeUUIDs: true,
+        //                         includeState: true
+        //                     }, 
+        //                     function (status, response) {
+        //                         sendStateUpdate();
+
+        //                         // only one channel for this app, so we don't need to iterate over channels
+        //                         // get the channel by name and then get the uuids and state for each occupant
+        //                         UI.updateRoomCount(response.channels[chat_channel].occupancy);
+        //                         response.channels[chat_channel].occupants.forEach(
+        //                             function(item) {
+        //                                 if (item.state)
+        //                                     UI.handleStateChange(item.uuid, item.state);
+        //                             }
+        //                         );
+        //                     }
+        //                 );
+                        
+        //            }
+        //         },
+        //     });
+
+
+        //     pubnub.subscribe({
+        //         channels: [chat_channel],
+        //         withPresence: true // also subscribe to presence instances.
+        //     });
+
+        //     function joinChatRoom() {
+        //         // if (chat_channel != "webinar-chat") debugger;
+        //         console.log("!!!! CHAT_CHANNEL: " + chat_channel);
+        //         pubnub.subscribe({
+        //             channels: [chat_channel],
+        //             withPresence: true // also subscribe to presence instances.
+        //         });
+
+        //         document.querySelector("#send-button").disabled = false;
+        //         document.querySelector("#console-message-input").disabled = false;
+        //     }
+
+        //     function leaveChatRoom() {
+        //         console.log('Leave chat_channel');
+        //         pubnub.unsubscribe({
+        //             channels: [chat_channel]
+        //         });
+
+        //         UI.clearBuddyList();
+        //         document.querySelector("#send-button").disabled = true;
+        //         document.querySelector("#console-message-input").disabled = true;
+        //     }
+
+        //     function sendStateUpdate() {
+        //         var txtUserName = document.querySelector('#txtUsername');
+        //         var txtLocation = document.querySelector('#txtLocation');
+
+        //         myState.username = txtUsername.value;
+        //         myState.location = txtLocation.value
+
+        //         localStorage.setItem('profileUserName', txtUserName.value);
+        //         localStorage.setItem('profileLocation', txtLocation.value);
+        //         localStorage.setItem('profileExists', true);
+
+        //         pubnub.setState(
+        //             {
+        //                 channels: [chat_channel],
+        //                 uuid: myUUID,
+        //                 state: myState
+        //             },
+        //             function(response) {
+        //                 console.log("setState on sendStateUpdate: " + JSON.stringify(response));
+        //             }
+        //         );
+        //     }
+
+        //     var updateProfileButton = document.querySelector('#btn-update-profile');
+        //     updateProfileButton.onclick = sendStateUpdate;
+
+        //     if (myState.username === 'Unknow') {
+        //         // userhas not set his state.
+        //         $('#profile-modal').modal('show');
+        //     } 
+        //     else {
+        //         var txtUserName = document.querySelector('#txtUsername');
+        //         var txtLocation = document.querySelector('#txtLocation');
+        //         txtUsername.value = myState.username;
+        //         txtLocation.value = myState.location;
+
+        //         pubnub.setState(
+        //             {
+        //                 channels: [chat_channel],
+        //                 uuid: myUUID,
+        //                 state: myState
+        //             },
+        //             function(response) {
+        //                 console.log("setState before joinChatRoom: " + JSON.stringify(response));
+        //                 joinChatRoom();
+        //             }
+        //         );
+        //     }
+
+
+        //     /** 
+        //      * this function publishes the text in the input text to pubnub, anyone subscribed to the channel will recieve 
+        //      * the message
+        //      **/
+        //     function publish() {
+        //         var messageText = document.querySelector("#console-message-input");
+        //         var msg = {
+        //             from: myState.username,
+        //             text: messageText.value
+        //         };
+
+        //         pubnub.publish(
+        //             {
+        //                 message: msg,
+        //                 channel: chat_channel
+        //             }, 
+        //             function (status, response) {
+        //                 if (status.error) {
+        //                     console.log(status)
+        //                 } 
+        //                 else {
+        //                     console.log("message Published w/ timetoken", response.timetoken)
+        //                 }
+        //             }
+        //         );
+
+        //         messageText.value = '';
+        //     }
+
+        //     //reference to the send button element
+        //     var messageSend = document.querySelector("#send-button");
+        //     messageSend.onclick = publish;
+            
+        //     joinButton = document.querySelector('#join-button');
+        //     joinButton.onclick = joinChatRoom;
+
+        //     leaveButton = document.querySelector('#leave-button');
+        //     leaveButton.onclick = leaveChatRoom;
+        // })()
+    </script>
+</body>
+</html>
